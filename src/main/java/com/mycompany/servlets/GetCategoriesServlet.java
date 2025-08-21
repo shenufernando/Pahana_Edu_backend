@@ -1,24 +1,22 @@
 package com.mycompany.servlets;
 
 import com.mycompany.dao.BookDAO;
-import com.mycompany.models.Book;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.List;
+import java.util.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-@WebServlet("/GetBooksServlet")  // Changed to GetBooksServlet for consistency
-public class GetAllBooksServlet extends HttpServlet {
+@WebServlet("/GetCategoriesServlet")
+public class GetCategoriesServlet extends HttpServlet {
     
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        // CORS headers
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:8080");
         response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -29,42 +27,26 @@ public class GetAllBooksServlet extends HttpServlet {
         PrintWriter out = response.getWriter();
         JSONObject jsonResponse = new JSONObject();
         
-        System.out.println("=== DEBUG: GetBooksServlet called ===");
-        
         try {
             BookDAO bookDAO = new BookDAO();
-            List<Book> books = bookDAO.getAllBooks();
+            List<String> categories = bookDAO.getBookCategories();
             
-            JSONArray booksArray = new JSONArray();
-            for (Book book : books) {
-                JSONObject bookJson = new JSONObject();
-                // Format bookCode with leading zeros for consistency
-                String bookCodeStr = String.format("%010d", book.getBookCode());
-                bookJson.put("bookCode", bookCodeStr);
-                bookJson.put("bookTitle", book.getBookTitle());
-                bookJson.put("bookCategory", book.getBookCategory());
-                bookJson.put("price", book.getPrice());
-                bookJson.put("availableQuantity", book.getAvailableQuantity());
-                booksArray.put(bookJson);
+            JSONArray categoriesArray = new JSONArray();
+            for (String category : categories) {
+                categoriesArray.put(category);
             }
             
             jsonResponse.put("status", "success");
-            jsonResponse.put("books", booksArray);
+            jsonResponse.put("categories", categoriesArray);
             out.print(jsonResponse.toString());
             
-            System.out.println("Successfully returned " + booksArray.length() + " books");
-            
         } catch (Exception e) {
-            System.out.println("=== ERROR in GetBooksServlet ===");
             e.printStackTrace();
-            System.out.println("=== END ERROR ===");
-            
             jsonResponse.put("status", "error");
             jsonResponse.put("message", "Server error: " + e.getMessage());
             out.print(jsonResponse.toString());
         } finally {
             out.flush();
-            System.out.println("=== DEBUG: GetBooksServlet completed ===");
         }
     }
     

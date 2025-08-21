@@ -1,7 +1,7 @@
 package com.mycompany.servlets;
 
-import com.mycompany.dao.BookDAO;
-import com.mycompany.models.Book;
+import com.mycompany.dao.CustomerDAO;
+import com.mycompany.models.Customer;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
@@ -11,8 +11,8 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-@WebServlet("/GetBooksServlet")  // Changed to GetBooksServlet for consistency
-public class GetAllBooksServlet extends HttpServlet {
+@WebServlet("/GetCustomersServlet")
+public class GetCustomersServlet extends HttpServlet {
     
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -29,42 +29,32 @@ public class GetAllBooksServlet extends HttpServlet {
         PrintWriter out = response.getWriter();
         JSONObject jsonResponse = new JSONObject();
         
-        System.out.println("=== DEBUG: GetBooksServlet called ===");
-        
         try {
-            BookDAO bookDAO = new BookDAO();
-            List<Book> books = bookDAO.getAllBooks();
+            CustomerDAO customerDAO = new CustomerDAO();
+            List<Customer> customers = customerDAO.getAllCustomers();
             
-            JSONArray booksArray = new JSONArray();
-            for (Book book : books) {
-                JSONObject bookJson = new JSONObject();
-                // Format bookCode with leading zeros for consistency
-                String bookCodeStr = String.format("%010d", book.getBookCode());
-                bookJson.put("bookCode", bookCodeStr);
-                bookJson.put("bookTitle", book.getBookTitle());
-                bookJson.put("bookCategory", book.getBookCategory());
-                bookJson.put("price", book.getPrice());
-                bookJson.put("availableQuantity", book.getAvailableQuantity());
-                booksArray.put(bookJson);
+            JSONArray customersArray = new JSONArray();
+            for (Customer customer : customers) {
+                JSONObject customerJson = new JSONObject();
+                customerJson.put("accountNo", customer.getCustomerId()); // This is account_no
+                customerJson.put("name", customer.getName());
+                customerJson.put("phone", customer.getPhone());
+                customersArray.put(customerJson);
             }
             
             jsonResponse.put("status", "success");
-            jsonResponse.put("books", booksArray);
+            jsonResponse.put("customers", customersArray);
             out.print(jsonResponse.toString());
             
-            System.out.println("Successfully returned " + booksArray.length() + " books");
-            
         } catch (Exception e) {
-            System.out.println("=== ERROR in GetBooksServlet ===");
+            System.out.println("=== ERROR in GetCustomersServlet ===");
             e.printStackTrace();
-            System.out.println("=== END ERROR ===");
             
             jsonResponse.put("status", "error");
             jsonResponse.put("message", "Server error: " + e.getMessage());
             out.print(jsonResponse.toString());
         } finally {
             out.flush();
-            System.out.println("=== DEBUG: GetBooksServlet completed ===");
         }
     }
     

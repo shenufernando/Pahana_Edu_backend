@@ -101,6 +101,26 @@ public class BookDAO {
         return books;
     }
     
+    // Get all unique book categories
+public List<String> getBookCategories() {
+    List<String> categories = new ArrayList<>();
+    String sql = "SELECT DISTINCT book_category FROM books ORDER BY book_category";
+    
+    try (Connection conn = DBConnection.getConnection();
+         Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(sql)) {
+        
+        while (rs.next()) {
+            categories.add(rs.getString("book_category"));
+        }
+        
+    } catch (SQLException e) {
+        System.out.println("Error fetching categories: " + e.getMessage());
+        e.printStackTrace();
+    }
+    return categories;
+}
+    
     // Get book by code - FIXED RESOURCE LEAK
     public Book getBookByCode(int bookCode) {
         String sql = "SELECT * FROM books WHERE book_code = ?";
