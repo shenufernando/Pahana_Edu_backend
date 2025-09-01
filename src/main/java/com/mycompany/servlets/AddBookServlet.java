@@ -15,7 +15,7 @@ import java.io.PrintWriter;
 public class AddBookServlet extends HttpServlet {
     
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+    public void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
         // CORS headers
@@ -117,7 +117,7 @@ public class AddBookServlet extends HttpServlet {
     }
     
     @Override
-    protected void doOptions(HttpServletRequest request, HttpServletResponse response)
+    public void doOptions(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:8080");

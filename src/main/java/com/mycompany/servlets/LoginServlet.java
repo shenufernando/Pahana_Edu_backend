@@ -15,7 +15,7 @@ import java.io.PrintWriter;
 public class LoginServlet extends HttpServlet {
     
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+    public void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
         // Add CORS headers
@@ -75,7 +75,7 @@ public class LoginServlet extends HttpServlet {
     
     // Handle preflight OPTIONS requests
     @Override
-    protected void doOptions(HttpServletRequest request, HttpServletResponse response)
+    public void doOptions(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:8080");

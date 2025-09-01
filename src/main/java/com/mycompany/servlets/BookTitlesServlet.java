@@ -1,18 +1,18 @@
 package com.mycompany.servlets;
 
-import com.mycompany.dao.CustomerDAO;
-import com.mycompany.models.Customer;
+import com.mycompany.dao.BookDAO;
+import com.mycompany.models.Book;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
-import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
-@WebServlet("/GetCustomersServlet")
-public class GetCustomersServlet extends HttpServlet {
+@WebServlet("/BookTitlesServlet")
+public class BookTitlesServlet extends HttpServlet {
     
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -20,7 +20,7 @@ public class GetCustomersServlet extends HttpServlet {
         
         // CORS headers
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:8080");
-        response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
         response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setContentType("application/json");
@@ -30,42 +30,50 @@ public class GetCustomersServlet extends HttpServlet {
         JSONObject jsonResponse = new JSONObject();
         
         try {
-            CustomerDAO customerDAO = new CustomerDAO();
-            List<Customer> customers = customerDAO.getAllCustomers();
+            System.out.println("=== BookTitlesServlet: Getting all books ===");
             
-            JSONArray customersArray = new JSONArray();
-            for (Customer customer : customers) {
-                JSONObject customerJson = new JSONObject();
-                customerJson.put("accountNo", customer.getAccountNo());
-                customerJson.put("name", customer.getCustomerName());
-                customerJson.put("address", customer.getAddress());
-                customerJson.put("phone", customer.getPhone());
-                customerJson.put("unitsConsumed", customer.getUnitsConsumed());
-                customersArray.put(customerJson);
-            }
+            BookDAO bookDAO = new BookDAO();
+            List<Book> books = bookDAO.getAllBooks();
+            
+            System.out.println("Retrieved " + books.size() + " books from DAO");
             
             jsonResponse.put("status", "success");
-            jsonResponse.put("customers", customersArray);
-            out.print(jsonResponse.toString());
+            JSONArray booksArray = new JSONArray();
+            
+            for (Book book : books) {
+                JSONObject bookObj = new JSONObject();
+                bookObj.put("bookCode", book.getBookCode());
+                bookObj.put("bookTitle", book.getBookTitle());
+                bookObj.put("bookCategory", book.getBookCategory());
+                bookObj.put("price", book.getPrice());
+                bookObj.put("availableQuantity", book.getAvailableQuantity());
+                booksArray.put(bookObj);
+                
+                System.out.println("Added book: " + book.getBookTitle() + " - " + book.getBookCategory());
+            }
+            
+            jsonResponse.put("books", booksArray);
+            System.out.println("Sending response with " + booksArray.length() + " books");
             
         } catch (Exception e) {
-            System.out.println("=== ERROR in GetCustomersServlet ===");
+            System.out.println("=== ERROR in BookTitlesServlet ===");
             e.printStackTrace();
+            System.out.println("=== END ERROR ===");
             
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             jsonResponse.put("status", "error");
             jsonResponse.put("message", "Server error: " + e.getMessage());
-            out.print(jsonResponse.toString());
-        } finally {
-            out.flush();
         }
+        
+        out.print(jsonResponse.toString());
+        out.flush();
     }
     
     @Override
     protected void doOptions(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:8080");
-        response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
         response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setStatus(HttpServletResponse.SC_OK);

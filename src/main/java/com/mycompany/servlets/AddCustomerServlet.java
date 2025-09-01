@@ -16,9 +16,8 @@ public class AddCustomerServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        // CORS headers
         response.setHeader("Access-Control-Allow-Origin", "http://localhost:8080");
-        response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+        response.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type");
         response.setHeader("Access-Control-Allow-Credentials", "true");
         response.setContentType("application/json");
@@ -47,6 +46,7 @@ public class AddCustomerServlet extends HttpServlet {
                 address == null || address.trim().isEmpty() ||
                 phone == null || phone.trim().isEmpty()) {
                 
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 jsonResponse.put("status", "error");
                 jsonResponse.put("message", "Name, address, and phone are required fields");
                 out.print(jsonResponse.toString());
@@ -55,6 +55,7 @@ public class AddCustomerServlet extends HttpServlet {
             
             // Validate phone format (10 digits)
             if (!phone.matches("\\d{10}")) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 jsonResponse.put("status", "error");
                 jsonResponse.put("message", "Phone number must be 10 digits");
                 out.print(jsonResponse.toString());
@@ -62,17 +63,19 @@ public class AddCustomerServlet extends HttpServlet {
             }
             
             // Parse units consumed (optional)
-            int unitsConsumed = 0;
+            Integer unitsConsumed = null;
             if (unitsConsumedStr != null && !unitsConsumedStr.trim().isEmpty()) {
                 try {
                     unitsConsumed = Integer.parseInt(unitsConsumedStr);
                     if (unitsConsumed < 0) {
+                        response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                         jsonResponse.put("status", "error");
                         jsonResponse.put("message", "Units consumed cannot be negative");
                         out.print(jsonResponse.toString());
                         return;
                     }
                 } catch (NumberFormatException e) {
+                    response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                     jsonResponse.put("status", "error");
                     jsonResponse.put("message", "Invalid units consumed value");
                     out.print(jsonResponse.toString());
@@ -83,6 +86,7 @@ public class AddCustomerServlet extends HttpServlet {
             // Check if phone already exists
             CustomerDAO customerDAO = new CustomerDAO();
             if (customerDAO.phoneExists(phone)) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 jsonResponse.put("status", "error");
                 jsonResponse.put("message", "Phone number already exists in the system");
                 out.print(jsonResponse.toString());
@@ -90,17 +94,26 @@ public class AddCustomerServlet extends HttpServlet {
             }
             
             // Create customer object
-            Customer customer = new Customer(name.trim(), address.trim(), phone.trim(), unitsConsumed);
+            Customer customer = new Customer();
+            customer.setCustomerName(name.trim());
+            customer.setAddress(address.trim());
+            customer.setPhone(phone.trim());
+            customer.setUnitsConsumed(unitsConsumed);
             
             // Add customer to database
             boolean success = customerDAO.addCustomer(customer);
             
             if (success) {
+                response.setStatus(HttpServletResponse.SC_OK);
                 jsonResponse.put("status", "success");
-                jsonResponse.put("message", "Customer added successfully! Account Number: " + customer.getCustomerId());
-                jsonResponse.put("accountNo", customer.getCustomerId());
-                jsonResponse.put("customerId", customer.getCustomerId());
+                jsonResponse.put("message", "Customer added successfully!");
+                // Get the generated account number
+                int accountNo = customer.getAccountNo();
+                if (accountNo > 0) {
+                    jsonResponse.put("accountNo", accountNo);
+                }
             } else {
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
                 jsonResponse.put("status", "error");
                 jsonResponse.put("message", "Failed to add customer to database");
             }
@@ -112,6 +125,7 @@ public class AddCustomerServlet extends HttpServlet {
             e.printStackTrace();
             System.out.println("=== END ERROR ===");
             
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             jsonResponse.put("status", "error");
             jsonResponse.put("message", "Server error: " + e.getMessage());
             out.print(jsonResponse.toString());

@@ -8,226 +8,242 @@ import java.util.List;
 
 public class CustomerDAO {
     
-    // Add new customer - UPDATED FOR YOUR SCHEMA
-    public boolean addCustomer(Customer customer) {
-        String sql = "INSERT INTO customers (customer_name, address, phone, units_consumed) VALUES (?, ?, ?, ?)";
-        
-        System.out.println("=== DEBUG: Starting addCustomer ===");
-        System.out.println("Name: " + customer.getName());
-        System.out.println("Address: " + customer.getAddress());
-        System.out.println("Phone: " + customer.getPhone());
-        System.out.println("Units Consumed: " + customer.getUnitsConsumed());
-        
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+    // SQL queries
+    private static final String INSERT_CUSTOMER_SQL = "INSERT INTO customers (customer_name, address, phone, units_consumed) VALUES (?, ?, ?, ?)";
+    private static final String SELECT_CUSTOMER_BY_ID = "SELECT * FROM customers WHERE account_no = ?";
+    private static final String SELECT_ALL_CUSTOMERS = "SELECT * FROM customers ORDER BY account_no";
+    private static final String SELECT_CUSTOMERS_BY_NAME = "SELECT * FROM customers WHERE customer_name LIKE ? ORDER BY account_no";
+    private static final String UPDATE_CUSTOMER_SQL = "UPDATE customers SET customer_name = ?, address = ?, phone = ?, units_consumed = ? WHERE account_no = ?";
+    private static final String DELETE_CUSTOMER_SQL = "DELETE FROM customers WHERE account_no = ?";
+    private static final String CHECK_PHONE_EXISTS = "SELECT COUNT(*) FROM customers WHERE phone = ?";
+    private static final String CHECK_PHONE_EXISTS_EXCLUDE_ID = "SELECT COUNT(*) FROM customers WHERE phone = ? AND account_no != ?";
+    private static final String COUNT_CUSTOMERS_SQL = "SELECT COUNT(*) FROM customers";
 
-            System.out.println("Database connection successful: " + (conn != null));
+    // Use your existing DBConnection utility
+    private Connection getConnection() {
+        return DBConnection.getConnection();
+    }
+
+    // Add customer method
+    public boolean addCustomer(Customer customer) {
+        boolean success = false;
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(INSERT_CUSTOMER_SQL, Statement.RETURN_GENERATED_KEYS)) {
             
-            stmt.setString(1, customer.getName());
-            stmt.setString(2, customer.getAddress());
-            stmt.setString(3, customer.getPhone());
+            setCustomerParameters(preparedStatement, customer);
             
-            if (customer.getUnitsConsumed() > 0) {
-                stmt.setInt(4, customer.getUnitsConsumed());
-            } else {
-                stmt.setNull(4, Types.INTEGER);
+            int rowsAffected = preparedStatement.executeUpdate();
+            
+            if (rowsAffected > 0) {
+                setGeneratedAccountNo(preparedStatement, customer);
+                success = true;
             }
+        } catch (SQLException e) {
+            printSQLException(e);
+        }
+        return success;
+    }
+
+    // Get customer by ID
+    public Customer getCustomerById(int accountNo) {
+        Customer customer = null;
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(SELECT_CUSTOMER_BY_ID)) {
             
-            System.out.println("Executing SQL: " + sql);
-            int rows = stmt.executeUpdate();
-            System.out.println("Rows affected: " + rows);
-            
-            // Get generated account number
-            if (rows > 0) {
-                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        customer.setCustomerId(generatedKeys.getInt(1)); // This will be account_no
-                    }
+            preparedStatement.setInt(1, accountNo);
+            try (ResultSet rs = preparedStatement.executeQuery()) {
+                if (rs.next()) {
+                    customer = extractCustomerFromResultSet(rs);
                 }
             }
-            
-            return rows > 0;
-
         } catch (SQLException e) {
-            System.out.println("=== SQL ERROR DETAILS ===");
-            System.out.println("Error Message: " + e.getMessage());
-            System.out.println("SQL State: " + e.getSQLState());
-            System.out.println("Error Code: " + e.getErrorCode());
-            e.printStackTrace();
-            System.out.println("=== END ERROR DETAILS ===");
-            return false;
-        } catch (Exception e) {
-            System.out.println("=== GENERAL ERROR ===");
-            e.printStackTrace();
-            System.out.println("=== END ERROR ===");
-            return false;
+            printSQLException(e);
         }
+        return customer;
     }
-    
-    // Get all customers - UPDATED FOR YOUR SCHEMA
+
+    // Get all customers
     public List<Customer> getAllCustomers() {
         List<Customer> customers = new ArrayList<>();
-        String sql = "SELECT account_no, customer_name, address, phone, units_consumed FROM customers ORDER BY customer_name";
-        
-        System.out.println("=== DEBUG: Starting getAllCustomers ===");
-        
-        try (Connection conn = DBConnection.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(SELECT_ALL_CUSTOMERS);
+             ResultSet rs = preparedStatement.executeQuery()) {
             
-            System.out.println("Database connection successful: " + (conn != null));
-            System.out.println("Executing SQL: " + sql);
-            
-            int count = 0;
             while (rs.next()) {
-                Customer customer = new Customer();
-                customer.setCustomerId(rs.getInt("account_no")); // Using account_no as ID
-                customer.setName(rs.getString("customer_name"));
-                customer.setAddress(rs.getString("address"));
-                customer.setPhone(rs.getString("phone"));
-                customer.setUnitsConsumed(rs.getInt("units_consumed"));
+                Customer customer = extractCustomerFromResultSet(rs);
                 customers.add(customer);
-                count++;
             }
-            
-            System.out.println("Fetched " + count + " customers from database");
-            
         } catch (SQLException e) {
-            System.out.println("=== SQL ERROR in getAllCustomers ===");
-            System.out.println("Error Message: " + e.getMessage());
-            System.out.println("SQL State: " + e.getSQLState());
-            System.out.println("Error Code: " + e.getErrorCode());
-            e.printStackTrace();
-            System.out.println("=== END ERROR ===");
+            printSQLException(e);
         }
-        
-        System.out.println("Returning " + customers.size() + " customers");
-        System.out.println("=== DEBUG: Ending getAllCustomers ===");
         return customers;
     }
-    
-    // Get customer by account number - UPDATED FOR YOUR SCHEMA
-    public Customer getCustomerById(int accountNo) {
-        String sql = "SELECT * FROM customers WHERE account_no = ?";
-        
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+    // Search customers by name
+    public List<Customer> getCustomersByName(String namePattern) {
+        List<Customer> customers = new ArrayList<>();
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(SELECT_CUSTOMERS_BY_NAME)) {
             
-            stmt.setInt(1, accountNo);
-            
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    Customer customer = new Customer();
-                    customer.setCustomerId(rs.getInt("account_no"));
-                    customer.setName(rs.getString("customer_name"));
-                    customer.setAddress(rs.getString("address"));
-                    customer.setPhone(rs.getString("phone"));
-                    customer.setUnitsConsumed(rs.getInt("units_consumed"));
-                    return customer;
+            preparedStatement.setString(1, "%" + namePattern + "%");
+            try (ResultSet rs = preparedStatement.executeQuery()) {
+                while (rs.next()) {
+                    Customer customer = extractCustomerFromResultSet(rs);
+                    customers.add(customer);
                 }
             }
-            
         } catch (SQLException e) {
-            System.out.println("Error fetching customer: " + e.getMessage());
-            e.printStackTrace();
+            printSQLException(e);
         }
-        return null;
+        return customers;
     }
-    
-    // Update customer - UPDATED FOR YOUR SCHEMA
+
+    // Update customer
     public boolean updateCustomer(Customer customer) {
-        String sql = "UPDATE customers SET customer_name = ?, address = ?, phone = ?, units_consumed = ? WHERE account_no = ?";
-        
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        boolean success = false;
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(UPDATE_CUSTOMER_SQL)) {
             
-            stmt.setString(1, customer.getName());
-            stmt.setString(2, customer.getAddress());
-            stmt.setString(3, customer.getPhone());
+            setCustomerParameters(preparedStatement, customer);
+            preparedStatement.setInt(5, customer.getAccountNo());
             
-            if (customer.getUnitsConsumed() > 0) {
-                stmt.setInt(4, customer.getUnitsConsumed());
-            } else {
-                stmt.setNull(4, Types.INTEGER);
-            }
-            
-            stmt.setInt(5, customer.getCustomerId()); // account_no
-            
-            int rows = stmt.executeUpdate();
-            return rows > 0;
-            
+            int rowsAffected = preparedStatement.executeUpdate();
+            success = rowsAffected > 0;
         } catch (SQLException e) {
-            System.out.println("Error updating customer: " + e.getMessage());
-            e.printStackTrace();
-            return false;
+            printSQLException(e);
         }
+        return success;
     }
-    
-    // Delete customer - UPDATED FOR YOUR SCHEMA
+
+    // Delete customer
     public boolean deleteCustomer(int accountNo) {
-        String sql = "DELETE FROM customers WHERE account_no = ?";
-        
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        boolean success = false;
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(DELETE_CUSTOMER_SQL)) {
             
-            stmt.setInt(1, accountNo);
-            int rows = stmt.executeUpdate();
-            return rows > 0;
-            
+            preparedStatement.setInt(1, accountNo);
+            int rowsAffected = preparedStatement.executeUpdate();
+            success = rowsAffected > 0;
         } catch (SQLException e) {
-            System.out.println("Error deleting customer: " + e.getMessage());
-            e.printStackTrace();
-            return false;
+            printSQLException(e);
         }
+        return success;
     }
-    
-    // Check if phone number already exists - UPDATED FOR YOUR SCHEMA
+
+    // Phone exists check method
     public boolean phoneExists(String phone) {
-        String sql = "SELECT COUNT(*) FROM customers WHERE phone = ?";
-        
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+        boolean exists = false;
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(CHECK_PHONE_EXISTS)) {
             
-            stmt.setString(1, phone);
-            
-            try (ResultSet rs = stmt.executeQuery()) {
+            preparedStatement.setString(1, phone);
+            try (ResultSet rs = preparedStatement.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getInt(1) > 0;
+                    exists = rs.getInt(1) > 0;
                 }
             }
-            
         } catch (SQLException e) {
-            System.out.println("Error checking phone: " + e.getMessage());
-            e.printStackTrace();
+            printSQLException(e);
         }
-        return false;
+        return exists;
     }
-    
-    // Get customer by phone number - NEW METHOD
-    public Customer getCustomerByPhone(String phone) {
-        String sql = "SELECT * FROM customers WHERE phone = ?";
-        
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+    // Phone exists check excluding a specific customer (for updates)
+    public boolean phoneExists(String phone, int excludeAccountNo) {
+        boolean exists = false;
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(CHECK_PHONE_EXISTS_EXCLUDE_ID)) {
             
-            stmt.setString(1, phone);
-            
-            try (ResultSet rs = stmt.executeQuery()) {
+            preparedStatement.setString(1, phone);
+            preparedStatement.setInt(2, excludeAccountNo);
+            try (ResultSet rs = preparedStatement.executeQuery()) {
                 if (rs.next()) {
-                    Customer customer = new Customer();
-                    customer.setCustomerId(rs.getInt("account_no"));
-                    customer.setName(rs.getString("customer_name"));
-                    customer.setAddress(rs.getString("address"));
-                    customer.setPhone(rs.getString("phone"));
-                    customer.setUnitsConsumed(rs.getInt("units_consumed"));
-                    return customer;
+                    exists = rs.getInt(1) > 0;
                 }
             }
-            
         } catch (SQLException e) {
-            System.out.println("Error fetching customer by phone: " + e.getMessage());
-            e.printStackTrace();
+            printSQLException(e);
         }
-        return null;
+        return exists;
+    }
+
+    // Get total customer count
+    public int getCustomerCount() {
+        int count = 0;
+        try (Connection connection = getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(COUNT_CUSTOMERS_SQL);
+             ResultSet rs = preparedStatement.executeQuery()) {
+            
+            if (rs.next()) {
+                count = rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            printSQLException(e);
+        }
+        return count;
+    }
+
+    // Helper method to set customer parameters in PreparedStatement
+    private void setCustomerParameters(PreparedStatement preparedStatement, Customer customer) 
+            throws SQLException {
+        preparedStatement.setString(1, customer.getCustomerName());
+        preparedStatement.setString(2, customer.getAddress());
+        preparedStatement.setString(3, customer.getPhone());
+        
+        if (customer.getUnitsConsumed() != null) {
+            preparedStatement.setInt(4, customer.getUnitsConsumed());
+        } else {
+            preparedStatement.setNull(4, Types.INTEGER);
+        }
+    }
+
+    // Helper method to set generated account number
+    private void setGeneratedAccountNo(PreparedStatement preparedStatement, Customer customer) 
+            throws SQLException {
+        try (ResultSet generatedKeys = preparedStatement.getGeneratedKeys()) {
+            if (generatedKeys.next()) {
+                customer.setAccountNo(generatedKeys.getInt(1));
+            }
+        }
+    }
+
+    // Helper method to extract customer from ResultSet
+    private Customer extractCustomerFromResultSet(ResultSet rs) throws SQLException {
+        Customer customer = new Customer();
+        customer.setAccountNo(rs.getInt("account_no"));
+        customer.setCustomerName(rs.getString("customer_name"));
+        customer.setAddress(rs.getString("address"));
+        customer.setPhone(rs.getString("phone"));
+        
+        int unitsConsumed = rs.getInt("units_consumed");
+        if (!rs.wasNull()) {
+            customer.setUnitsConsumed(unitsConsumed);
+        } else {
+            customer.setUnitsConsumed(null);
+        }
+        
+        return customer;
+    }
+
+    // Exception handling method
+    private void printSQLException(SQLException ex) {
+        for (Throwable e : ex) {
+            if (e instanceof SQLException) {
+                System.err.println("SQLException occurred:");
+                System.err.println("SQLState: " + ((SQLException) e).getSQLState());
+                System.err.println("Error Code: " + ((SQLException) e).getErrorCode());
+                System.err.println("Message: " + e.getMessage());
+                
+                // Print stack trace for debugging
+                e.printStackTrace();
+                
+                // Print cause chain
+                Throwable cause = e.getCause();
+                while (cause != null) {
+                    System.err.println("Cause: " + cause);
+                    cause = cause.getCause();
+                }
+            }
+        }
     }
 }

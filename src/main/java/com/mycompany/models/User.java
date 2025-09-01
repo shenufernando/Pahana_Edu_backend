@@ -1,7 +1,7 @@
 package com.mycompany.models;
 
 public class User {
-    private int id;
+    private int userId;  // Changed from 'id' to 'userId' to match database column
     private String fullName;
     private String email;
     private String username;
@@ -18,8 +18,13 @@ public class User {
         this.role = role;
     }
 
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
+    // Changed from getId() to getUserId() to match what GetUserServlet expects
+    public int getUserId() { return userId; }
+    public void setUserId(int userId) { this.userId = userId; }
+
+    // Keep the old getId() method for backward compatibility if needed
+    public int getId() { return userId; }
+    public void setId(int id) { this.userId = id; }
 
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
